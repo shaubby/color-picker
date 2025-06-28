@@ -12,7 +12,6 @@
     "build": "vite build",
     "start": "npm run build && electron-forge start",
     "dev": "vite"
-    
   },
   "keywords": [],
   "author": {
@@ -21,9 +20,13 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
+    "@tailwindcss/vite": "^4.1.11",
     "electron-squirrel-startup": "^1.0.1",
+    "jimp": "^1.6.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "screenshot-desktop": "^1.15.1"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.8.1",
@@ -35,7 +38,10 @@
     "@electron-forge/plugin-fuses": "^7.8.1",
     "@electron/fuses": "^1.8.0",
     "@vitejs/plugin-react": "^4.6.0",
+    "autoprefixer": "^10.4.21",
     "electron": "37.1.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.11",
     "typescript": "^5.8.3",
     "vite": "^7.0.0"
   }

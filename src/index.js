@@ -11,8 +11,8 @@ let window = null;
 
 const offsetX = 10;
 const offsetY = 5;
-const pickerHeight = 100;
-const pickerWidth=100;
+const pickerHeight = 50;
+const pickerWidth=150;
 
 // follow window
 const followMouse = () => {

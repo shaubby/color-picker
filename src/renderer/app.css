@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@font-face {
+    font-family: 'pixeloperator';
+    src: url('/PixelOperator.ttf');
+}
+div {
+    font-family: 'pixeloperator';
+}
