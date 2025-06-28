@@ -10,8 +10,7 @@
     "publish": "electron-forge publish",
     "lint": "echo \"No linting configured\"",
     "build": "vite build",
-    "start": "npm run build && electron-forge start",
-    "dev": "vite"
+    "start": "npm run build && electron-forge start"
   },
   "keywords": [],
   "author": {
@@ -23,7 +22,7 @@
     "@tailwindcss/postcss": "^4.1.11",
     "@tailwindcss/vite": "^4.1.11",
     "electron-squirrel-startup": "^1.0.1",
-    "jimp": "^1.6.0",
+    "jimp": "^0.22.10",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "screenshot-desktop": "^1.15.1"
