@@ -4,5 +4,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  getPixelColor: () => ipcRenderer.invoke('get-pixel-color'),
+  getSources: () => ipcRenderer.invoke('get-sources'),
+  getCursorPosition: () => ipcRenderer.invoke('get-cursor-position'),
 });

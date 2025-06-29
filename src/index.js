@@ -16,8 +16,8 @@ let window = null;
 
 const offsetX = 10;
 const offsetY = 5;
-const pickerHeight = 50;
-const pickerWidth=150;
+const pickerHeight = 500;
+const pickerWidth=500;
 let color = '#ffffff';
 
 // follow window
@@ -71,7 +71,7 @@ const createWindow = () => {
   win.webContents.on('console-message', (event, level, message) => {
     console.log(`Renderer: ${message}`);
   });
-  win.webContents.openDevTools();
+  //win.webContents.openDevTools();
   return win;
   
 };
@@ -79,27 +79,15 @@ const createWindow = () => {
 
 // create app
 app.whenReady().then(() => {
+  // Add IPC handler for cursor position
+  ipcMain.handle('get-cursor-position', () => {
+    return screen.getCursorScreenPoint();
+  });
 
-  ipcMain.handle('get-pixel-color', async () => {
-    try {
-      const { x, y } = screen.getCursorScreenPoint();
-      const imgBuffer = await screenshot({ format: 'png' });
-      const img = await Jimp.read(imgBuffer);
-      const pixel = img.getPixelColor(x, y);
-      const { r, g, b, a } = Jimp.intToRGBA(pixel);
-
-      const hexColor =
-        '#' +
-        [r, g, b]
-          .map((v) => v.toString(16).padStart(2, '0'))
-          .join('')
-          .toUpperCase();
-
-      return { hex: hexColor, rgba: { r, g, b, a } };
-    } catch (error) {
-      console.error('Failed to get pixel color:', error);
-      return null;
-    }
+  // Add IPC handler for screen sources
+  ipcMain.handle('get-sources', async () => {
+    const { desktopCapturer } = require('electron');
+    return await desktopCapturer.getSources({ types: ['screen'] });
   });
 
   tray = new Tray(path.join(__dirname, 'icon.png'));
