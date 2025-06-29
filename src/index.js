@@ -1,5 +1,6 @@
 const { screen, app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain } = require('electron');
 const path = require('node:path');
+const { spawn } = require('child_process');
 
 const getColor = require('./getcolor.js');
 const screenshot = require('screenshot-desktop');
@@ -84,14 +85,125 @@ app.whenReady().then(() => {
     return screen.getCursorScreenPoint();
   });
 
-  // Add IPC handler for screen sources
+  // Add IPC handler for screen sources with cursor exclusion
   ipcMain.handle('get-sources', async () => {
     const { desktopCapturer } = require('electron');
     return await desktopCapturer.getSources({ 
       types: ['screen'],
-      thumbnailSize: { width: 0, height: 0 }, // Don't generate thumbnails
+      thumbnailSize: { width: 0, height: 0 },
       fetchWindowIcons: false
     });
+  });
+
+  // Add IPC handler for screen capture without cursor using different method
+  ipcMain.handle('get-screen-without-cursor', async () => {
+    const { desktopCapturer } = require('electron');
+    const sources = await desktopCapturer.getSources({ 
+      types: ['screen'],
+      thumbnailSize: { width: 0, height: 0 },
+      fetchWindowIcons: false
+    });
+    
+    if (sources.length > 0) {
+      return sources[0];
+    }
+    return null;
+  });
+
+  // Add IPC handler for ffmpeg screen capture without cursor
+  ipcMain.handle('start-ffmpeg-capture', async () => {
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const tempDir = path.join(app.getPath('temp'), 'screen-capture');
+    const tempFile = path.join(tempDir, 'screen-stream.mp4');
+    
+    // Create temp directory if it doesn't exist
+    const fs = require('fs');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    console.log('Starting ffmpeg video stream with file:', tempFile);
+    
+    // Try different ffmpeg input formats for Windows
+    const inputFormats = [
+      ['-f', 'gdigrab', '-framerate', '30', '-video_size', `${width}x${height}`, '-i', 'desktop'],
+      ['-f', 'dshow', '-i', 'video=screen-capture-recorder', '-framerate', '30'],
+      ['-f', 'gdigrab', '-i', 'desktop', '-framerate', '30', '-video_size', `${width}x${height}`]
+    ];
+    
+    for (let i = 0; i < inputFormats.length; i++) {
+      try {
+        console.log(`Trying ffmpeg format ${i + 1}:`, inputFormats[i]);
+        
+        return await new Promise((resolve, reject) => {
+          const ffmpegArgs = [
+            ...inputFormats[i],
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '23',
+            '-tune', 'zerolatency',
+            '-f', 'mp4',
+            '-movflags', 'frag_keyframe+empty_moov',
+            '-y',
+            tempFile
+          ];
+          
+          console.log('FFmpeg command:', 'ffmpeg', ffmpegArgs.join(' '));
+          
+          const ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
+          
+          ffmpegProcess.stdout.on('data', (data) => {
+            console.log('FFmpeg stdout:', data.toString());
+          });
+          
+          ffmpegProcess.stderr.on('data', (data) => {
+            const output = data.toString();
+            console.log('FFmpeg stderr:', output);
+            
+            // Check if ffmpeg has started encoding frames
+            if (output.includes('frame=') && output.includes('fps=')) {
+              // Wait a bit more to ensure file is created and has content
+              setTimeout(() => {
+                console.log('FFmpeg video stream started successfully');
+                resolve({
+                  file: tempFile,
+                  width: width,
+                  height: height,
+                  process: ffmpegProcess
+                });
+              }, 2000); // Wait 2 seconds after first frame
+            }
+          });
+          
+          ffmpegProcess.on('close', (code) => {
+            console.log(`FFmpeg process exited with code ${code}`);
+          });
+          
+          ffmpegProcess.on('error', (err) => {
+            console.error('FFmpeg error:', err);
+            if (i === inputFormats.length - 1) {
+              reject(err);
+            }
+          });
+          
+          // Timeout after 10 seconds if no frames are produced
+          setTimeout(() => {
+            if (!ffmpegProcess.killed) {
+              console.log('FFmpeg timeout, killing process');
+              ffmpegProcess.kill();
+              if (i === inputFormats.length - 1) {
+                reject(new Error('FFmpeg timeout'));
+              }
+            }
+          }, 10000);
+        });
+      } catch (error) {
+        console.error(`Format ${i + 1} failed:`, error);
+        if (i === inputFormats.length - 1) {
+          throw error;
+        }
+      }
+    }
   });
 
   tray = new Tray(path.join(__dirname, 'icon.png'));
