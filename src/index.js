@@ -16,8 +16,8 @@ let window = null;
 
 const offsetX = 10;
 const offsetY = 5;
-const pickerHeight = 500;
-const pickerWidth=500;
+const pickerHeight = 300;
+const pickerWidth=300;
 let color = '#ffffff';
 
 // follow window
@@ -87,7 +87,11 @@ app.whenReady().then(() => {
   // Add IPC handler for screen sources
   ipcMain.handle('get-sources', async () => {
     const { desktopCapturer } = require('electron');
-    return await desktopCapturer.getSources({ types: ['screen'] });
+    return await desktopCapturer.getSources({ 
+      types: ['screen'],
+      thumbnailSize: { width: 0, height: 0 }, // Don't generate thumbnails
+      fetchWindowIcons: false
+    });
   });
 
   tray = new Tray(path.join(__dirname, 'icon.png'));

@@ -30,8 +30,8 @@ export default function App() {
               mandatory: {
                 chromeMediaSource: 'desktop',
                 chromeMediaSourceId: screenSource.id,
-                maxWidth: 3840,
-                maxHeight: 2160,
+                maxWidth: 2560 ,
+                maxHeight: 1440,
                 maxFrameRate: 10,
               },
             },
@@ -43,20 +43,25 @@ export default function App() {
     
             const ctx = canvasRef.current?.getContext('2d', { willReadFrequently: true });
     
+            // Set canvas size to small region
+            if (canvasRef.current) {
+              canvasRef.current.width = 100;
+              canvasRef.current.height = 100;
+            }
+    
             const updateColor = async () => {
               if (!ctx || !videoRef.current) return;
               
               // Get current cursor position
               const currentCursorPos = await window.electronAPI.getCursorPosition();
+              console.log('Current cursor position:', currentCursorPos.x + ', ' + currentCursorPos.y);
               
-              // Draw small region around center (or mouse coords)
-              ctx.drawImage(videoRef.current, currentCursorPos.x-50, currentCursorPos.y-50, 100, 100);
-              console.log(currentCursorPos.x, currentCursorPos.y);
+              // Draw small region around cursor position
+              ctx.drawImage(videoRef.current, currentCursorPos.x-5, currentCursorPos.y-5, 10, 10, 0, 0, 100, 100);
               
-              // Pick pixel color at center
+              // Pick pixel color at center of the canvas
               const imageData = ctx.getImageData(50, 50, 1, 1);
               const [r, g, b, a] = imageData.data;
-    
               setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
     
               requestAnimationFrame(updateColor);
@@ -71,14 +76,12 @@ export default function App() {
 
     return (
         <div className="w-screen h-screen">
-            <img src="./bg.svg" className="w-full h-full absolute"></img>
-            <img src='./color.svg' className="w-24/96 h-24/32 absolute top-1/8 left-6/96 bg-blue-500"></img>
             <div className="absolute text-white left-[40%] h-full flex items-center justify-center">
                 <p className="flex-1">{color}</p>
             </div>
             {/* Hidden video and canvas */}
             <video ref={videoRef} style={{ display: 'none' }} />
-            <canvas ref={canvasRef} style={{ display: 'none' }} />
+            <canvas ref={canvasRef} style={{ width: '150px', height: '150px', border: '1px solid black' }} />
         </div>
     );
 }
