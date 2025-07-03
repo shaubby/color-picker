@@ -17,8 +17,8 @@ let window = null;
 
 const offsetX = 10;
 const offsetY = 5;
-const pickerHeight = 300;
-const pickerWidth=300;
+const pickerHeight = 150;
+const pickerWidth=100;
 let color = '#ffffff';
 
 // follow window
@@ -39,8 +39,8 @@ const followMouse = () => {
 // create the window
 const createWindow = () => {
   const win = new BrowserWindow({
-    width: pickerHeight,
-    height: pickerWidth,
+    width: pickerWidth,
+    height: pickerHeight,
     show: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -93,6 +93,26 @@ app.whenReady().then(() => {
       thumbnailSize: { width: 0, height: 0 },
       fetchWindowIcons: false
     });
+  });
+
+  // Add IPC handler for still image capture without cursor
+  ipcMain.handle('capture-screen-image', async (event, { x, y, width, height }) => {
+    const { desktopCapturer, screen, nativeImage } = require('electron');
+    const display = screen.getPrimaryDisplay();
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: display.size.width, height: display.size.height },
+      fetchWindowIcons: false
+    });
+    if (sources.length > 0) {
+      let image = sources[0].thumbnail;
+      // Crop to region if parameters provided
+      if (typeof x === 'number' && typeof y === 'number' && typeof width === 'number' && typeof height === 'number') {
+        image = image.crop({ x, y, width, height });
+      }
+      return image.toPNG();
+    }
+    return null;
   });
 
   // Add IPC handler for screen capture without cursor using different method

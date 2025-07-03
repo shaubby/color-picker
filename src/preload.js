@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSources: () => ipcRenderer.invoke('get-sources'),
   getCursorPosition: () => ipcRenderer.invoke('get-cursor-position'),
   startFfmpegCapture: () => ipcRenderer.invoke('start-ffmpeg-capture'),
+  captureScreenImage: (region) => ipcRenderer.invoke('capture-screen-image', region),
 });

@@ -7,123 +7,182 @@ declare global {
       getSources: () => Promise<Array<{ id: string; name: string; thumbnail: Electron.NativeImage }>>;
       getCursorPosition: () => Promise<{ x: number; y: number }>;
       startFfmpegCapture: () => Promise<{ file: string; width: number; height: number }>;
+      captureScreenImage: (region?: { x: number; y: number; width: number; height: number }) => Promise<Buffer>;
     };
   }
 }
+function invertColor(hex) {
+  if (hex.indexOf('#') === 0) {
+    hex = hex.slice(1);
+  }
+  // Convert hex to RGB
+  let r = parseInt(hex.substring(0, 2), 16);
+  let g = parseInt(hex.substring(2, 4), 16);
+  let b = parseInt(hex.substring(4, 6), 16);
 
+  // Invert RGB values
+  r = 255 - r;
+  g = 255 - g;
+  b = 255 - b;
+
+  // Convert back to hex
+  const toHex = (c) => {
+    const hex = c.toString(16);
+    return hex.length === 1 ? "0" + hex : hex;
+  };
+
+  return "#" + toHex(r) + toHex(g) + toHex(b);
+}
 export default function App() {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [color, setColor] = useState<string>('#ffffff');
-  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 })
+  const [isMouseMoving, setIsMouseMoving] = useState<boolean>(false);
+  const prevPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const stillTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMovingRef = useRef<boolean>(false);
 
   useEffect(() => {
-    async function startCapture() {
-      try {
-        // Start ffmpeg video stream capture without cursor
-        const { file: videoFile, width, height } = await window.electronAPI.startFfmpegCapture();
-        
-        console.log('FFmpeg video stream started, loading video file:', videoFile);
-        
-        if (videoRef.current) {
-          // Set the video source to the ffmpeg output file
-          videoRef.current.src = `file://${videoFile}`;
-          videoRef.current.play();
+    let isMounted = true;
+    let intervalId: NodeJS.Timeout;
 
-          const ctx = canvasRef.current?.getContext('2d', { willReadFrequently: true });
-
-          // Set canvas size to small region
-          if (canvasRef.current) {
-            canvasRef.current.width = 100;
-            canvasRef.current.height = 100;
+    async function updateColorFromScreenshot() {
+      const { x, y } = await window.electronAPI.getCursorPosition();
+      
+      // Check if mouse is moving
+      if (prevPositionRef.current) {
+        const prevPos = prevPositionRef.current;
+        const distance = Math.sqrt((x - prevPos.x) ** 2 + (y - prevPos.y) ** 2);
+        const isMoving = distance > 0;
+        
+        if (isMoving) {
+          console.log('Mouse moving, distance:', distance);
+          setIsMouseMoving(true);
+          isMovingRef.current = true;
+          // Clear any existing timeout
+          if (stillTimeoutRef.current) {
+            clearTimeout(stillTimeoutRef.current);
+            stillTimeoutRef.current = null;
           }
+        } else {
 
-          const updateColor = async () => {
-            if (!ctx || !videoRef.current) return;
+          // Set a timeout to mark as still after 1 second
+          if (!stillTimeoutRef.current) {
 
-            // Get current cursor position
-            const currentCursorPos = await window.electronAPI.getCursorPosition();
+            stillTimeoutRef.current = setTimeout(() => {
 
-            // Draw small region around cursor position
-            ctx.drawImage(videoRef.current, currentCursorPos.x - 5, currentCursorPos.y - 5, 10, 10, 0, 0, 100, 100);
-
-            // Pick pixel color at center of the canvas
-            const imageData = ctx.getImageData(50, 50, 1, 1);
-            const [r, g, b, a] = imageData.data;
-            const color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-            setColor(color);
-
-            requestAnimationFrame(updateColor);
+              setIsMouseMoving(false);
+              isMovingRef.current = false;
+            }, 10);
+          }
+        }
+      }
+      
+      // Update previous position for next comparison
+      prevPositionRef.current = { x, y };
+      
+      if (!isMovingRef.current) {
+        try {
+          // Get cursor position
+          const { x, y } = await window.electronAPI.getCursorPosition();
+          
+          // Check if mouse is moving
+          if (prevPositionRef.current) {
+            const prevPos = prevPositionRef.current;
+            const distance = Math.sqrt((x - prevPos.x) ** 2 + (y - prevPos.y) ** 2);
+            setIsMouseMoving(distance > 0);
+          }
+          prevPositionRef.current = { x, y };
+          
+          // Define region size
+          const regionSize = 20;
+          const region = {
+            x: Math.max(0, x - Math.floor(regionSize / 2)),
+            y: Math.max(0, y - Math.floor(regionSize / 2)),
+            width: regionSize,
+            height: regionSize
           };
+          // Get screenshot buffer (PNG) of region
+          const buffer = await window.electronAPI.captureScreenImage(region);
+          if (!buffer || !isMounted) return;
 
-          requestAnimationFrame(updateColor);
+          // Create an image from the buffer
+          const blob = new Blob([buffer], { type: 'image/png' });
+          const url = URL.createObjectURL(blob);
+          const img = new window.Image();
+          img.src = url;
+          img.onload = async () => {
+            if (!canvasRef.current) return;
+            const ctx = canvasRef.current.getContext('2d', { willReadFrequently: true });
+            if (!ctx) return;
+
+            // Resize canvas to match image
+            canvasRef.current.width = img.width;
+            canvasRef.current.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            
+            const centerX = Math.floor(img.width / 2);
+            const centerY = Math.floor(img.height / 2);
+
+            // Get color at center pixel
+            const imageData = ctx.getImageData(centerX, centerY, 1, 1);
+            const [r, g, b] = imageData.data;
+            setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
+            // Draw a red square around the center pixel
+            ctx.fillStyle = invertColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
+            ctx.fillRect(centerX-1, centerY-1, 1, 1);
+            
+            ctx.fillRect(centerX-1, centerY+1, 1, 1);
+            ctx.fillRect(centerX+1, centerY+1, 1, 1);
+            ctx.fillRect(centerX+1, centerY-1, 1, 1);
+            ctx.fillRect(centerX-1, centerY, 1, 1);
+            ctx.fillRect(centerX, centerY+1, 1, 1);
+            ctx.fillRect(centerX+1, centerY, 1, 1);
+            ctx.fillRect(centerX, centerY-1, 1, 1);
+            URL.revokeObjectURL(url);
+          };
+        } catch (error) {
+          console.error('Failed to capture screen image:', error);
         }
-      } catch (error) {
-        console.error('FFmpeg capture failed, falling back to desktopCapturer:', error);
-        // Fallback to original method
-        const sources = await window.electronAPI.getSources();
-        const cursorPos = await window.electronAPI.getCursorPosition();
-        if (sources.length === 0) return;
-
-        const screenSource = sources[0]; // grab first screen
-
-        const stream = await (navigator.mediaDevices as any).getUserMedia({
-          audio: false,
-          video: {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: screenSource.id,
-              maxWidth: 2560,
-              maxHeight: 1440,
-              maxFrameRate: 10,
-            },
-          },
-        });
-
-        const videoRef = document.createElement('video');
-        videoRef.srcObject = stream;
-        videoRef.play();
-
-        const ctx = canvasRef.current?.getContext('2d', { willReadFrequently: true });
-
-        // Set canvas size to small region
-        if (canvasRef.current) {
-          canvasRef.current.width = 100;
-          canvasRef.current.height = 100;
-        }
-
-        const updateColor = async () => {
-          if (!ctx || !videoRef) return;
-          
-          // Get current cursor position
-          const currentCursorPos = await window.electronAPI.getCursorPosition();
-          
-          // Draw small region around cursor position
-          ctx.drawImage(videoRef, currentCursorPos.x - 5, currentCursorPos.y - 5, 10, 10, 0, 0, 100, 100);
-          
-          // Pick pixel color at center of the canvas
-          const imageData = ctx.getImageData(50, 50, 1, 1);
-          const [r, g, b, a] = imageData.data;
-          setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
-
-          requestAnimationFrame(updateColor);
-        };
-
-        requestAnimationFrame(updateColor);
       }
     }
 
-    startCapture();
+    // Poll every 100ms
+    intervalId = setInterval(updateColorFromScreenshot, 50);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+      if (stillTimeoutRef.current) {
+        clearTimeout(stillTimeoutRef.current);
+      }
+    };
   }, []);
 
   return (
-    <div className="w-screen h-screen">
-      <div className="absolute text-white left-[40%] h-full flex items-center justify-center">
-        <p className="flex-1">{color}</p>
-      </div>
-      {/* Hidden video and canvas */}
-      <video ref={videoRef} style={{ display: 'none' }} />
-      <canvas ref={canvasRef} style={{ width: '150px', height: '150px', border: '1px solid black' }} />
+    <div className="h-screen bg-black border">
+      
+      
+      {/* Hidden canvas for color picking */}
+      <canvas
+        ref={canvasRef}
+        className="w-full border-1 border-white bg-black z-10"
+        style={{ imageRendering: 'pixelated' }}
+      />
+
+        <div className='w-full text-white text-center'>
+          {color}
+        </div>
+        <div className='w-full text-white text-center text-sm'>
+          Mouse: {isMouseMoving ? 'Moving' : 'Still'}
+        </div>
+        <div className={' p-1 flex items-center justify-center'}>
+          <div
+            className="w-full h-3 border-1 border-white"
+            style={{ backgroundColor: color }}
+          ></div>
+        </div>
+
     </div>
   );
 }
