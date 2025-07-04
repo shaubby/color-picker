@@ -6,8 +6,10 @@ declare global {
     electronAPI: {
       getSources: () => Promise<Array<{ id: string; name: string; thumbnail: Electron.NativeImage }>>;
       getCursorPosition: () => Promise<{ x: number; y: number }>;
+      getGlobalEnter: () => Promise<boolean>;
       startFfmpegCapture: () => Promise<{ file: string; width: number; height: number }>;
       captureScreenImage: (region?: { x: number; y: number; width: number; height: number }) => Promise<Buffer>;
+      closeWindow: () => void;
     };
   }
 }
@@ -18,7 +20,7 @@ function invertColor(hex) {
   // Convert hex to RGB
   let r = parseInt(hex.substring(0, 2), 16);
   let g = parseInt(hex.substring(2, 4), 16);
-  let b = parseInt(hex.substring(4, 6), 16);
+  let b = parseInt(hex.substring(4, 6), 16);              
 
   // Invert RGB values
   r = 255 - r;
@@ -37,6 +39,7 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [color, setColor] = useState<string>('#ffffff');
   const [isMouseMoving, setIsMouseMoving] = useState<boolean>(false);
+  const [enterPressed, setEnterPressed] = useState<boolean>(false);
   const prevPositionRef = useRef<{ x: number; y: number } | null>(null);
   const stillTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMovingRef = useRef<boolean>(false);
@@ -48,6 +51,11 @@ export default function App() {
     async function updateColorFromScreenshot() {
       const { x, y } = await window.electronAPI.getCursorPosition();
       
+      const enterKeyPressed = await window.electronAPI.getGlobalEnter();
+      if (enterKeyPressed) {
+        setEnterPressed(true);
+        clearInterval(intervalId);
+      }
       // Check if mouse is moving
       if (prevPositionRef.current) {
         const prevPos = prevPositionRef.current;
@@ -159,11 +167,9 @@ export default function App() {
     };
   }, []);
 
-  return (
-    <div className="h-screen bg-black border">
-      
-      
-      {/* Hidden canvas for color picking */}
+  const colorPicker = () => {
+    return (
+      <div>
       <canvas
         ref={canvasRef}
         className="w-full border-1 border-white bg-black z-10"
@@ -173,16 +179,36 @@ export default function App() {
         <div className='w-full text-white text-center'>
           {color}
         </div>
-        <div className='w-full text-white text-center text-sm'>
-          Mouse: {isMouseMoving ? 'Moving' : 'Still'}
-        </div>
         <div className={' p-1 flex items-center justify-center'}>
           <div
             className="w-full h-3 border-1 border-white"
             style={{ backgroundColor: color }}
           ></div>
         </div>
+        </div>
+    );
+  }
+  const menu = () => {
+    return (
+      <div className='w-full h-full flex flex-col items-center justify-center'>
+        
+        
+        <canvas
+          ref={canvasRef}
+          className="w-1/2 border-1 border-white bg-black z-10"
+          style={{ imageRendering: 'pixelated' }}
+        />
+      </div>
+    )
+  }
 
+  return (
+    
+    <div className="h-screen bg-black border">
+      
+      {enterPressed ? (menu()) : (colorPicker()) }
+      
+  
     </div>
   );
 }

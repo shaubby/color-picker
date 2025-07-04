@@ -1,4 +1,4 @@
-const { screen, app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, globalShortcut } = require('electron');
 const path = require('node:path');
 const { spawn } = require('child_process');
 
@@ -6,6 +6,8 @@ const getColor = require('./getcolor.js');
 const screenshot = require('screenshot-desktop');
 const Jimp = require('jimp');
 
+let globalClickDetected = false;
+let followInterval = null;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -19,6 +21,8 @@ const offsetX = 10;
 const offsetY = 5;
 const pickerHeight = 150;
 const pickerWidth=100;
+const menuHeight = 200;
+const menuWidth=200;
 let color = '#ffffff';
 
 // follow window
@@ -31,6 +35,16 @@ const followMouse = () => {
       y: y+offsetY,
       width: pickerWidth,
       height: pickerHeight,
+    })
+    window.focus()
+  }
+  if (globalClickDetected) {
+    clearInterval(followInterval);
+    window.setBounds({
+      x: x+offsetX,
+      y: y+offsetY,
+      width: menuWidth,
+      height: menuHeight,
     })
     window.focus()
   }
@@ -53,7 +67,7 @@ const createWindow = () => {
     hasShadow: false,
     transparent: true,
   });
-  const followInterval = setInterval(followMouse, 10);
+  followInterval = setInterval(followMouse, 10);
 
   win.loadFile(path.join(__dirname,'dist', 'index.html'));
   
@@ -83,6 +97,9 @@ app.whenReady().then(() => {
   // Add IPC handler for cursor position
   ipcMain.handle('get-cursor-position', () => {
     return screen.getCursorScreenPoint();
+  });
+  ipcMain.on('close-window', () => {
+    if (window) window.close();
   });
 
   // Add IPC handler for screen sources with cursor exclusion
@@ -261,6 +278,29 @@ app.whenReady().then(() => {
     if (!window){
       window=createWindow();
     }
+  });
+
+  // Add IPC handler for global click detection
+  ipcMain.handle('get-global-click', () => {
+    // This will be updated by the global click listener
+    return globalClickDetected;
+  });
+
+  
+  
+  // Set up global Enter key detection
+  // Register Enter key as global shortcut
+  globalShortcut.register('Enter', () => {
+    globalClickDetected = true;
+    // Reset after a short delay
+    setTimeout(() => {
+      globalClickDetected = false;
+    }, 100);
+  });
+  
+  // Clean up shortcuts when app closes
+  app.on('before-quit', () => {
+    globalShortcut.unregisterAll();
   });
 });
 
