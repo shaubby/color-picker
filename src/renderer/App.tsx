@@ -35,6 +35,38 @@ function invertColor(hex) {
 
   return "#" + toHex(r) + toHex(g) + toHex(b);
 }
+function hexToHsv(hex: string): { h: number; s: number; v: number } {
+  // Remove '#' if present
+  hex = hex.replace(/^#/, '');
+  if (hex.length === 3) {
+    hex = hex.split('').map(x => x + x).join('');
+  }
+  const r = parseInt(hex.substring(0, 2), 16) / 255;
+  const g = parseInt(hex.substring(2, 4), 16) / 255;
+  const b = parseInt(hex.substring(4, 6), 16) / 255;
+
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, v = max;
+
+  const d = max - min;
+  s = max === 0 ? 0 : d / max;
+
+  if (max === min) {
+    h = 0;
+  } else {
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    v: Math.round(v * 100)
+  };
+}
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [color, setColor] = useState<string>('#ffffff');
@@ -43,6 +75,11 @@ export default function App() {
   const prevPositionRef = useRef<{ x: number; y: number } | null>(null);
   const stillTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMovingRef = useRef<boolean>(false);
+  const [rgb, setRGB]= useState<{ r: number; g: number; b: number }>({ r: 0, g: 0, b: 0 });
+  const [colorBg, setColorBg] = useState<string>('bg-black');
+  const [rbgBg, setRgbBg] = useState<string>('bg-black');
+  const [hsvBg, sethsvBg] = useState<string>('bg-black');
+  const [copyText, setCopyText] = useState<string>('');
 
   useEffect(() => {
     let isMounted = true;
@@ -135,18 +172,21 @@ export default function App() {
             // Get color at center pixel
             const imageData = ctx.getImageData(centerX, centerY, 1, 1);
             const [r, g, b] = imageData.data;
+            setRGB({ r, g, b });
             setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
             // Draw a red square around the center pixel
-            ctx.fillStyle = invertColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
-            ctx.fillRect(centerX-1, centerY-1, 1, 1);
-            
-            ctx.fillRect(centerX-1, centerY+1, 1, 1);
-            ctx.fillRect(centerX+1, centerY+1, 1, 1);
-            ctx.fillRect(centerX+1, centerY-1, 1, 1);
-            ctx.fillRect(centerX-1, centerY, 1, 1);
-            ctx.fillRect(centerX, centerY+1, 1, 1);
-            ctx.fillRect(centerX+1, centerY, 1, 1);
-            ctx.fillRect(centerX, centerY-1, 1, 1);
+            if(!enterKeyPressed) {
+              ctx.fillStyle = invertColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
+              ctx.fillRect(centerX-1, centerY-1, 1, 1);
+              
+              ctx.fillRect(centerX-1, centerY+1, 1, 1);
+              ctx.fillRect(centerX+1, centerY+1, 1, 1);
+              ctx.fillRect(centerX+1, centerY-1, 1, 1);
+              ctx.fillRect(centerX-1, centerY, 1, 1);
+              ctx.fillRect(centerX, centerY+1, 1, 1);
+              ctx.fillRect(centerX+1, centerY, 1, 1);
+              ctx.fillRect(centerX, centerY-1, 1, 1);
+            }
             URL.revokeObjectURL(url);
           };
         } catch (error) {
@@ -156,7 +196,9 @@ export default function App() {
     }
 
     // Poll every 100ms
-    intervalId = setInterval(updateColorFromScreenshot, 50);
+    intervalId = setInterval(updateColorFromScreenshot, 200);
+    
+    
 
     return () => {
       isMounted = false;
@@ -166,6 +208,30 @@ export default function App() {
       }
     };
   }, []);
+
+  const handleColorClick = async () => {
+    await navigator.clipboard.writeText(color);
+    setCopyText('Copied to Clipboard!');
+    setTimeout(() => {
+      setCopyText('');
+    }, 2000);
+  }
+
+  const handleRgbClick = async () => {
+    await navigator.clipboard.writeText('rgb(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ')');
+    setCopyText('Copied to Clipboard!');
+    setTimeout(() => {
+      setCopyText('');
+    }, 2000);
+  }
+  const handleHsvClick = async () => {
+    let hsv = hexToHsv(color);
+    await navigator.clipboard.writeText('hsv(' + hsv.h + ', ' + hsv.s + ', ' + hsv.v + ')');
+    setCopyText('Copied to Clipboard!');
+    setTimeout(() => {
+      setCopyText('');
+    }, 2000);
+  }
 
   const colorPicker = () => {
     return (
@@ -189,15 +255,36 @@ export default function App() {
     );
   }
   const menu = () => {
+    // Handler for canvas click
+    const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+      const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      const imageData = ctx.getImageData(x, y, 1, 1);
+      const [r, g, b] = imageData.data;
+      setRGB({ r, g, b });
+      setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
+    };
     return (
-      <div className='w-full h-full flex flex-col items-center justify-center'>
-        
-        
+      <div  className='w-full h-full flex flex-row p-5 border-white border-2 items-center justify-center'>
+        <div onClick={window.electronAPI.closeWindow} className='select-none cursor-pointer absolute right-2 top-2 w-7 h-7 bg-red-500 border-1 border-white flex items-center justify-center text-lg text-white'>x</div>
         <canvas
           ref={canvasRef}
-          className="w-1/2 border-1 border-white bg-black z-10"
+          className="flex-1 border-1 border-white bg-black z-10"
           style={{ imageRendering: 'pixelated' }}
+          onClick={handleCanvasClick}
         />
+        <div className='flex-1 flex flex-col gap-2 items-center justify-center text-white text-lg p-5'>
+          <div onClick={handleColorClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + colorBg} onMouseEnter={()=>setColorBg('bg-gray-900')} onMouseLeave={()=>setColorBg('bg-black')}>{color.toUpperCase()}</div>
+          <div onClick={handleRgbClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + rbgBg} onMouseEnter={()=>setRgbBg('bg-gray-900')} onMouseLeave={()=>setRgbBg('bg-black')}>{'rgb(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ')'}</div>
+          <div onClick={handleHsvClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + hsvBg} onMouseEnter={()=>sethsvBg('bg-gray-900')} onMouseLeave={()=>sethsvBg('bg-black')}>{'hsv(' + hexToHsv(color).h + ', ' + hexToHsv(color).s + ', ' + hexToHsv(color).v + ')'}</div>
+          <div className='text-center border-1 border-white p-3 w-full' style={{backgroundColor: color}}></div>
+          <div className='text-center text-base select-none'>{copyText + "   "}</div>
+        </div>  
       </div>
     )
   }
