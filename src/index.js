@@ -19,8 +19,8 @@ let window = null;
 
 const offsetX = 10;
 const offsetY = 5;
-const pickerHeight = 100;
-const pickerWidth=100;
+const pickerHeight = 230;
+const pickerWidth=460;
 const menuHeight = 230;
 const menuWidth=460;
 let color = '#ffffff';
@@ -38,16 +38,6 @@ const followMouse = () => {
     })
     window.focus()
   }
-  if (globalClickDetected) {
-    clearInterval(followInterval);
-    window.setBounds({
-      x: x+offsetX,
-      y: y+offsetY,
-      width: menuWidth,
-      height: menuHeight,
-    })
-    window.focus()
-  }
 }
 
 // create the window
@@ -62,25 +52,25 @@ const createWindow = () => {
     },
     frame: false,
     alwaysOnTop: true,
-    skipTaskbar:true,
-    resizable:false,
-    hasShadow: false,
+    skipTaskbar: true,
+    resizable: false,
+    hasShadow: true,
     transparent: true,
   });
-  followInterval = setInterval(followMouse, 10);
+  //followInterval = setInterval(followMouse, 10);
 
   win.loadFile(path.join(__dirname,'dist', 'index.html'));
-  
+  //win.show()
   win.on("close", (event) => {
-    if(followInterval) {
-      clearInterval(followInterval);
-    }
+    //if(followInterval) {
+      //clearInterval(followInterval);
+    //}
     win.hide();
   })
   win.on("closed", (event) => {
-    if(followInterval) {
-      clearInterval(followInterval);
-    }
+    //if(followInterval) {
+      //clearInterval(followInterval);
+    //}
     window = null; // prevent future access to a dead window
   });
   win.webContents.on('console-message', (event, level, message) => {
@@ -101,6 +91,14 @@ app.whenReady().then(() => {
   ipcMain.on('close-window', () => {
     if (window) window.close();
   });
+
+  // ipcMain.on('open-window', () => {
+  //   if (window) {
+  //     window.show();
+  //     window.focus();
+  //     console.log('Window opened');
+  //   }
+  // });
 
   // Add IPC handler for screen sources with cursor exclusion
   ipcMain.handle('get-sources', async () => {
@@ -269,7 +267,7 @@ app.whenReady().then(() => {
     if(!window || window.isDestroyed()) {
       window = createWindow();
     }
-    window.show();
+    window.show(); 
     window.focus();
   })
   // On OS X it's common to re-create a window in the app when the
@@ -277,27 +275,19 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (!window){
       window=createWindow();
+      window.show(); 
+      window.focus();
     }
   });
 
   // Add IPC handler for global click detection
-  ipcMain.handle('get-global-click', () => {
-    // This will be updated by the global click listener
-    return globalClickDetected;
-  });
+
 
   
   
   // Set up global Enter key detection
   // Register Enter key as global shortcut
-  globalShortcut.register('Enter', () => {
-    globalClickDetected = true;
-    // Reset after a short delay
-    setTimeout(() => {
-      globalClickDetected = false;
-    }, 100);
-  });
-  
+
   // Clean up shortcuts when app closes
   app.on('before-quit', () => {
     globalShortcut.unregisterAll();

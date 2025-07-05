@@ -10,6 +10,7 @@ declare global {
       startFfmpegCapture: () => Promise<{ file: string; width: number; height: number }>;
       captureScreenImage: (region?: { x: number; y: number; width: number; height: number }) => Promise<Buffer>;
       closeWindow: () => void;
+      openWindow: () => void;
     };
   }
 }
@@ -80,19 +81,16 @@ export default function App() {
   const [rbgBg, setRgbBg] = useState<string>('bg-black');
   const [hsvBg, sethsvBg] = useState<string>('bg-black');
   const [copyText, setCopyText] = useState<string>('');
+  const [show, setShow] = useState<boolean>(false);
 
-  useEffect(() => {
-    let isMounted = true;
-    let intervalId: NodeJS.Timeout;
-
-    async function updateColorFromScreenshot() {
+  const escFunction = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      window.electronAPI.closeWindow();
+    }
+  };
+    async function updateColorFromScreenshot(isMounted) {
       const { x, y } = await window.electronAPI.getCursorPosition();
       
-      const enterKeyPressed = await window.electronAPI.getGlobalEnter();
-      if (enterKeyPressed) {
-        setEnterPressed(true);
-        clearInterval(intervalId);
-      }
       // Check if mouse is moving
       if (prevPositionRef.current) {
         const prevPos = prevPositionRef.current;
@@ -174,8 +172,9 @@ export default function App() {
             const [r, g, b] = imageData.data;
             setRGB({ r, g, b });
             setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
-
+            setShow(true);
             URL.revokeObjectURL(url);
+            //window.electronAPI.openWindow()
           };
         } catch (error) {
           console.error('Failed to capture screen image:', error);
@@ -183,20 +182,22 @@ export default function App() {
       }
     }
 
+  useEffect(() => {
+    document.addEventListener("keydown", escFunction, false);
+    let isMounted = true;
+    let intervalId: NodeJS.Timeout;
+
     // Poll every 100ms
-    intervalId = setInterval(updateColorFromScreenshot, 100);
-    
+    //intervalId = setInterval(updateColorFromScreenshot, 100);
+    //updateColorFromScreenshot(isMounted);
     
 
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
-      if (stillTimeoutRef.current) {
-        clearTimeout(stillTimeoutRef.current);
-      }
     };
   }, []);
 
+  // #region Click Handling && old color picker
   const handleColorClick = async () => {
     await navigator.clipboard.writeText(color);
     setCopyText('Copied to Clipboard!');
@@ -204,7 +205,6 @@ export default function App() {
       setCopyText('');
     }, 2000);
   }
-
   const handleRgbClick = async () => {
     await navigator.clipboard.writeText('rgb(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ')');
     setCopyText('Copied to Clipboard!');
@@ -226,7 +226,7 @@ export default function App() {
       <div>
       <canvas
         ref={canvasRef}
-        className="w-full border-1 border-white bg-black z-10"
+        className="cursor-pointer w-full border-1 border-white bg-black z-10"
         style={{ imageRendering: 'pixelated' }}
       />
 
@@ -242,6 +242,10 @@ export default function App() {
         </div>
     );
   }
+  //#endregion
+
+  const color
+
   const menu = () => {
     // Handler for canvas click
     const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -258,12 +262,13 @@ export default function App() {
       setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
     };
     return (
+      <div className="h-screen bg-black border" style={{ display: show ? 'block' : 'none' }}>
       <div  className='w-full h-full flex flex-row p-5 border-white border-2 items-center justify-center'>
         <div onClick={window.electronAPI.closeWindow} className='select-none cursor-pointer absolute right-2 top-2 w-7 h-7 bg-red-500 border-1 border-white flex items-center justify-center text-lg text-white'>x</div>
         <canvas
           ref={canvasRef}
           className="flex-1 border-1 border-white bg-black z-10"
-          style={{ imageRendering: 'pixelated' }}
+          style={{ imageRendering: 'pixelated', cursor: 'crosshair' }}
           onClick={handleCanvasClick}
         />
         <div className='flex-1 flex flex-col gap-2 items-center justify-center text-white text-lg p-5'>
@@ -274,16 +279,11 @@ export default function App() {
           <div className='text-center text-base select-none'>{copyText + "   "}</div>
         </div>  
       </div>
+      </div>
     )
   }
 
   return (
-    
-    <div className="h-screen bg-black border">
-      
-      {enterPressed ? (menu()) : (colorPicker()) }
-      
-  
-    </div>
+    menu()
   );
 }
