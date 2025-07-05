@@ -117,7 +117,7 @@ export default function App() {
 
               setIsMouseMoving(false);
               isMovingRef.current = false;
-            }, 10);
+            }, 1);
           }
         }
       }
@@ -184,7 +184,7 @@ export default function App() {
     }
 
     // Poll every 100ms
-    intervalId = setInterval(updateColorFromScreenshot, 200);
+    intervalId = setInterval(updateColorFromScreenshot, 100);
     
     
 
@@ -230,7 +230,7 @@ export default function App() {
         style={{ imageRendering: 'pixelated' }}
       />
 
-        <div className='w-full text-white text-center'>
+        {/* <div className='w-full text-white text-center'>
           {color}
         </div>
         <div className={' p-1 flex items-center justify-center'}>
@@ -238,7 +238,7 @@ export default function App() {
             className="w-full h-3 border-1 border-white"
             style={{ backgroundColor: color }}
           ></div>
-        </div>
+        </div> */}
         </div>
     );
   }

@@ -19,7 +19,7 @@ let window = null;
 
 const offsetX = 10;
 const offsetY = 5;
-const pickerHeight = 150;
+const pickerHeight = 100;
 const pickerWidth=100;
 const menuHeight = 230;
 const menuWidth=460;
