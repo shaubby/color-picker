@@ -174,19 +174,7 @@ export default function App() {
             const [r, g, b] = imageData.data;
             setRGB({ r, g, b });
             setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
-            // Draw a red square around the center pixel
-            if(!enterKeyPressed) {
-              ctx.fillStyle = invertColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
-              ctx.fillRect(centerX-1, centerY-1, 1, 1);
-              
-              ctx.fillRect(centerX-1, centerY+1, 1, 1);
-              ctx.fillRect(centerX+1, centerY+1, 1, 1);
-              ctx.fillRect(centerX+1, centerY-1, 1, 1);
-              ctx.fillRect(centerX-1, centerY, 1, 1);
-              ctx.fillRect(centerX, centerY+1, 1, 1);
-              ctx.fillRect(centerX+1, centerY, 1, 1);
-              ctx.fillRect(centerX, centerY-1, 1, 1);
-            }
+
             URL.revokeObjectURL(url);
           };
         } catch (error) {
