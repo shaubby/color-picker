@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   captureScreenImage: (region) => ipcRenderer.invoke('capture-screen-image', region),
   closeWindow: () => ipcRenderer.send('close-window'),
   resizeWindow: () => ipcRenderer.send('resize-window'),
+  startFfmpegCapture: () => ipcRenderer.invoke('start-ffmpeg-capture'),
 });

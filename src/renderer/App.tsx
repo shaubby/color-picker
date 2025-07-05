@@ -229,7 +229,7 @@ export default function App() {
           
         <div className='drag-region  w-full h-full flex flex-row p-2 border-white border-2 items-center justify-center'>
           
-          <canvas
+          <canvas 
             ref={canvasRef}
             className="flex-1 no-drag border-1 border-white bg-black z-10"
             style={{ imageRendering: 'pixelated', cursor: 'crosshair' }}
