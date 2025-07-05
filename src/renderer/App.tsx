@@ -224,21 +224,30 @@ export default function App() {
       setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
     };
     return (
-      <div className="h-screen bg-black border" style={{ display: show ? 'block' : 'none' }}>
-        <div className='w-full h-full flex flex-row p-5 border-white border-2 items-center justify-center'>
-          <div onClick={window.electronAPI.closeWindow} className='select-none cursor-pointer absolute right-2 top-2 w-7 h-7 bg-red-500 border-1 border-white flex items-center justify-center text-lg text-white'>x</div>
+      <div className="bg-black border" style={{ display: show ? 'block' : 'none', position: 'relative' }}>
+        {/* X button at the top right */}
+          
+        <div className='drag-region  w-full h-full flex flex-row p-2 border-white border-2 items-center justify-center'>
+          
           <canvas
             ref={canvasRef}
-            className="flex-1 border-1 border-white bg-black z-10"
+            className="flex-1 no-drag border-1 border-white bg-black z-10"
             style={{ imageRendering: 'pixelated', cursor: 'crosshair' }}
             onClick={handleCanvasClick}
           />
-          <div className='flex-1 flex flex-col gap-2 items-center justify-center text-white text-lg p-5'>
-            <div onClick={handleColorClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + colorBg} onMouseEnter={() => setColorBg('bg-gray-900')} onMouseLeave={() => setColorBg('bg-black')}>{color.toUpperCase()}</div>
-            <div onClick={handleRgbClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + rbgBg} onMouseEnter={() => setRgbBg('bg-gray-900')} onMouseLeave={() => setRgbBg('bg-black')}>{'rgb(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ')'}</div>
-            <div onClick={handleHsvClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + hsvBg} onMouseEnter={() => sethsvBg('bg-gray-900')} onMouseLeave={() => sethsvBg('bg-black')}>{'hsv(' + hexToHsv(color).h + ', ' + hexToHsv(color).s + ', ' + hexToHsv(color).v + ')'}</div>
+          <div className='drag-region flex-1 flex flex-col gap-1 items-center justify-center text-white text-lg p-2'>
+            <div onClick={handleColorClick} className={'no-drag cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + colorBg} onMouseEnter={() => setColorBg('bg-gray-900')} onMouseLeave={() => setColorBg('bg-black')}>{color.toUpperCase()}</div>
+            <div onClick={handleRgbClick} className={'no-drag cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + rbgBg} onMouseEnter={() => setRgbBg('bg-gray-900')} onMouseLeave={() => setRgbBg('bg-black')}>{'rgb(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ')'}</div>
+            <div onClick={handleHsvClick} className={'no-drag cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + hsvBg} onMouseEnter={() => sethsvBg('bg-gray-900')} onMouseLeave={() => sethsvBg('bg-black')}>{'hsv(' + hexToHsv(color).h + ', ' + hexToHsv(color).s + ', ' + hexToHsv(color).v + ')'}</div>
             <div className='text-center border-1 border-white p-3 w-full' style={{ backgroundColor: color }}></div>
-            <div className='text-center text-base select-none'>{copyText + "   "}</div>
+            <div className='text-center text-sm select-none'>{copyText}</div>
+          </div>
+
+          <div
+            onClick={() => {window.electronAPI.closeWindow(); }}
+            className="no-drag relative select-none cursor-pointer w-8 h-full bg-red-500 border border-white text-white flex items-center justify-center text-lg z-20 relative"
+          >
+            x
           </div>
         </div>
       </div>
