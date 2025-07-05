@@ -17,10 +17,10 @@ if (require('electron-squirrel-startup')) {
 let tray = null;
 let window = null;
 
-const offsetX = 10;
-const offsetY = 5;
-const pickerHeight = 230;
-const pickerWidth=460;
+const offsetX = -100;
+const offsetY = -100;
+const pickerHeight = 200;
+const pickerWidth=200;
 const menuHeight = 230;
 const menuWidth=460;
 let color = '#ffffff';
@@ -29,14 +29,13 @@ let color = '#ffffff';
 const followMouse = () => {
   const {x, y} = screen.getCursorScreenPoint();
 
-  if(window && !window.isDestroyed() && window.isVisible()){
+  if(window && !window.isDestroyed()){
     window.setBounds({
       x: x+offsetX,
       y: y+offsetY,
       width: pickerWidth,
       height: pickerHeight,
     })
-    window.focus()
   }
 }
 
@@ -53,24 +52,24 @@ const createWindow = () => {
     frame: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    resizable: false,
+    resizable: true,
     hasShadow: true,
     transparent: true,
   });
-  //followInterval = setInterval(followMouse, 10);
+  followInterval = setInterval(followMouse, 10);
 
   win.loadFile(path.join(__dirname,'dist', 'index.html'));
-  //win.show()
+  win.focus();
   win.on("close", (event) => {
-    //if(followInterval) {
-      //clearInterval(followInterval);
-    //}
+    if(followInterval) {
+      clearInterval(followInterval);
+    }
     win.hide();
   })
   win.on("closed", (event) => {
-    //if(followInterval) {
-      //clearInterval(followInterval);
-    //}
+    if(followInterval) {
+      clearInterval(followInterval);
+    }
     window = null; // prevent future access to a dead window
   });
   win.webContents.on('console-message', (event, level, message) => {
@@ -81,7 +80,6 @@ const createWindow = () => {
   
 };
 
-
 // create app
 app.whenReady().then(() => {
   // Add IPC handler for cursor position
@@ -90,6 +88,18 @@ app.whenReady().then(() => {
   });
   ipcMain.on('close-window', () => {
     if (window) window.close();
+  });
+  ipcMain.on('resize-window', () => {
+    if (window) {
+      window.setBounds({
+        width: menuWidth,
+        height: menuHeight,
+      });
+      window.center();
+      if(followInterval) {
+        clearInterval(followInterval);
+      }
+    }
   });
 
   // ipcMain.on('open-window', () => {

@@ -11,6 +11,7 @@ declare global {
       captureScreenImage: (region?: { x: number; y: number; width: number; height: number }) => Promise<Buffer>;
       closeWindow: () => void;
       openWindow: () => void;
+      resizeWindow: () => void;
     };
   }
 }
@@ -21,7 +22,7 @@ function invertColor(hex) {
   // Convert hex to RGB
   let r = parseInt(hex.substring(0, 2), 16);
   let g = parseInt(hex.substring(2, 4), 16);
-  let b = parseInt(hex.substring(4, 6), 16);              
+  let b = parseInt(hex.substring(4, 6), 16);
 
   // Invert RGB values
   r = 255 - r;
@@ -71,126 +72,79 @@ function hexToHsv(hex: string): { h: number; s: number; v: number } {
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [color, setColor] = useState<string>('#ffffff');
-  const [isMouseMoving, setIsMouseMoving] = useState<boolean>(false);
-  const [enterPressed, setEnterPressed] = useState<boolean>(false);
-  const prevPositionRef = useRef<{ x: number; y: number } | null>(null);
-  const stillTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isMovingRef = useRef<boolean>(false);
-  const [rgb, setRGB]= useState<{ r: number; g: number; b: number }>({ r: 0, g: 0, b: 0 });
+  const [rgb, setRGB] = useState<{ r: number; g: number; b: number }>({ r: 0, g: 0, b: 0 });
   const [colorBg, setColorBg] = useState<string>('bg-black');
   const [rbgBg, setRgbBg] = useState<string>('bg-black');
   const [hsvBg, sethsvBg] = useState<string>('bg-black');
   const [copyText, setCopyText] = useState<string>('');
   const [show, setShow] = useState<boolean>(false);
+  const [picker, setPicker] = useState<boolean>(true);
 
   const escFunction = (event: KeyboardEvent) => {
     if (event.key === "Escape") {
       window.electronAPI.closeWindow();
     }
   };
-    async function updateColorFromScreenshot(isMounted) {
+
+  async function updateColorFromScreenshot(isMounted) {
+    try {
+      // Get cursor position
       const { x, y } = await window.electronAPI.getCursorPosition();
-      
-      // Check if mouse is moving
-      if (prevPositionRef.current) {
-        const prevPos = prevPositionRef.current;
-        const distance = Math.sqrt((x - prevPos.x) ** 2 + (y - prevPos.y) ** 2);
-        const isMoving = distance > 0;
-        
-        if (isMoving) {
-          console.log('Mouse moving, distance:', distance);
-          setIsMouseMoving(true);
-          isMovingRef.current = true;
-          // Clear any existing timeout
-          if (stillTimeoutRef.current) {
-            clearTimeout(stillTimeoutRef.current);
-            stillTimeoutRef.current = null;
-          }
-        } else {
 
-          // Set a timeout to mark as still after 1 second
-          if (!stillTimeoutRef.current) {
+      // Define region size
+      const regionSize = 20;
+      const region = {
+        x: Math.max(0, x - Math.floor(regionSize / 2)),
+        y: Math.max(0, y - Math.floor(regionSize / 2)),
+        width: regionSize,
+        height: regionSize
+      };
+      // Get screenshot buffer (PNG) of region
+      const buffer = await window.electronAPI.captureScreenImage(region);
+      if (!buffer || !isMounted) return;
 
-            stillTimeoutRef.current = setTimeout(() => {
+      // Create an image from the buffer
+      const blob = new Blob([buffer], { type: 'image/png' });
+      const url = URL.createObjectURL(blob);
+      const img = new window.Image();
+      img.src = url;
+      img.onload = async () => {
+        if (!canvasRef.current) return;
+        const ctx = canvasRef.current.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return;
 
-              setIsMouseMoving(false);
-              isMovingRef.current = false;
-            }, 1);
-          }
-        }
-      }
-      
-      // Update previous position for next comparison
-      prevPositionRef.current = { x, y };
-      
-      if (!isMovingRef.current) {
-        try {
-          // Get cursor position
-          const { x, y } = await window.electronAPI.getCursorPosition();
-          
-          // Check if mouse is moving
-          if (prevPositionRef.current) {
-            const prevPos = prevPositionRef.current;
-            const distance = Math.sqrt((x - prevPos.x) ** 2 + (y - prevPos.y) ** 2);
-            setIsMouseMoving(distance > 0);
-          }
-          prevPositionRef.current = { x, y };
-          
-          // Define region size
-          const regionSize = 20;
-          const region = {
-            x: Math.max(0, x - Math.floor(regionSize / 2)),
-            y: Math.max(0, y - Math.floor(regionSize / 2)),
-            width: regionSize,
-            height: regionSize
-          };
-          // Get screenshot buffer (PNG) of region
-          const buffer = await window.electronAPI.captureScreenImage(region);
-          if (!buffer || !isMounted) return;
+        // Resize canvas to match image
+        canvasRef.current.width = img.width;
+        canvasRef.current.height = img.height;
+        ctx.drawImage(img, 0, 0);
 
-          // Create an image from the buffer
-          const blob = new Blob([buffer], { type: 'image/png' });
-          const url = URL.createObjectURL(blob);
-          const img = new window.Image();
-          img.src = url;
-          img.onload = async () => {
-            if (!canvasRef.current) return;
-            const ctx = canvasRef.current.getContext('2d', { willReadFrequently: true });
-            if (!ctx) return;
 
-            // Resize canvas to match image
-            canvasRef.current.width = img.width;
-            canvasRef.current.height = img.height;
-            ctx.drawImage(img, 0, 0);
+        const centerX = Math.floor(img.width / 2);
+        const centerY = Math.floor(img.height / 2);
 
-            
-            const centerX = Math.floor(img.width / 2);
-            const centerY = Math.floor(img.height / 2);
-
-            // Get color at center pixel
-            const imageData = ctx.getImageData(centerX, centerY, 1, 1);
-            const [r, g, b] = imageData.data;
-            setRGB({ r, g, b });
-            setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
-            setShow(true);
-            URL.revokeObjectURL(url);
-            //window.electronAPI.openWindow()
-          };
-        } catch (error) {
-          console.error('Failed to capture screen image:', error);
-        }
-      }
+        // Get color at center pixel
+        const imageData = ctx.getImageData(centerX, centerY, 1, 1);
+        const [r, g, b] = imageData.data;
+        setRGB({ r, g, b });
+        setColor(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
+        setShow(true);
+        URL.revokeObjectURL(url);
+        //window.electronAPI.openWindow()
+      };
+    } catch (error) {
+      console.error('Failed to capture screen image:', error);
     }
+
+  }
 
   useEffect(() => {
     document.addEventListener("keydown", escFunction, false);
     let isMounted = true;
-    let intervalId: NodeJS.Timeout;
 
     // Poll every 100ms
     //intervalId = setInterval(updateColorFromScreenshot, 100);
     //updateColorFromScreenshot(isMounted);
-    
+
 
     return () => {
       isMounted = false;
@@ -224,11 +178,11 @@ export default function App() {
   const colorPicker = () => {
     return (
       <div>
-      <canvas
-        ref={canvasRef}
-        className="cursor-pointer w-full border-1 border-white bg-black z-10"
-        style={{ imageRendering: 'pixelated' }}
-      />
+        <canvas
+          ref={canvasRef}
+          className="cursor-pointer w-full border-1 border-white bg-black z-10"
+          style={{ imageRendering: 'pixelated' }}
+        />
 
         {/* <div className='w-full text-white text-center'>
           {color}
@@ -239,12 +193,20 @@ export default function App() {
             style={{ backgroundColor: color }}
           ></div>
         </div> */}
-        </div>
+      </div>
     );
   }
   //#endregion
 
-  const color
+  const colorPicker2 = () => {
+    const handleClick = () => {
+      window.electronAPI.resizeWindow();
+      updateColorFromScreenshot(true);
+      setPicker(false);
+      console.log('Clicked on color picker');
+    }
+    return (<div className='w-screen h-screen ' style={{ cursor: 'crosshair' }} onClick={handleClick}></div>);
+  };
 
   const menu = () => {
     // Handler for canvas click
@@ -263,27 +225,27 @@ export default function App() {
     };
     return (
       <div className="h-screen bg-black border" style={{ display: show ? 'block' : 'none' }}>
-      <div  className='w-full h-full flex flex-row p-5 border-white border-2 items-center justify-center'>
-        <div onClick={window.electronAPI.closeWindow} className='select-none cursor-pointer absolute right-2 top-2 w-7 h-7 bg-red-500 border-1 border-white flex items-center justify-center text-lg text-white'>x</div>
-        <canvas
-          ref={canvasRef}
-          className="flex-1 border-1 border-white bg-black z-10"
-          style={{ imageRendering: 'pixelated', cursor: 'crosshair' }}
-          onClick={handleCanvasClick}
-        />
-        <div className='flex-1 flex flex-col gap-2 items-center justify-center text-white text-lg p-5'>
-          <div onClick={handleColorClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + colorBg} onMouseEnter={()=>setColorBg('bg-gray-900')} onMouseLeave={()=>setColorBg('bg-black')}>{color.toUpperCase()}</div>
-          <div onClick={handleRgbClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + rbgBg} onMouseEnter={()=>setRgbBg('bg-gray-900')} onMouseLeave={()=>setRgbBg('bg-black')}>{'rgb(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ')'}</div>
-          <div onClick={handleHsvClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + hsvBg} onMouseEnter={()=>sethsvBg('bg-gray-900')} onMouseLeave={()=>sethsvBg('bg-black')}>{'hsv(' + hexToHsv(color).h + ', ' + hexToHsv(color).s + ', ' + hexToHsv(color).v + ')'}</div>
-          <div className='text-center border-1 border-white p-3 w-full' style={{backgroundColor: color}}></div>
-          <div className='text-center text-base select-none'>{copyText + "   "}</div>
-        </div>  
-      </div>
+        <div className='w-full h-full flex flex-row p-5 border-white border-2 items-center justify-center'>
+          <div onClick={window.electronAPI.closeWindow} className='select-none cursor-pointer absolute right-2 top-2 w-7 h-7 bg-red-500 border-1 border-white flex items-center justify-center text-lg text-white'>x</div>
+          <canvas
+            ref={canvasRef}
+            className="flex-1 border-1 border-white bg-black z-10"
+            style={{ imageRendering: 'pixelated', cursor: 'crosshair' }}
+            onClick={handleCanvasClick}
+          />
+          <div className='flex-1 flex flex-col gap-2 items-center justify-center text-white text-lg p-5'>
+            <div onClick={handleColorClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + colorBg} onMouseEnter={() => setColorBg('bg-gray-900')} onMouseLeave={() => setColorBg('bg-black')}>{color.toUpperCase()}</div>
+            <div onClick={handleRgbClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + rbgBg} onMouseEnter={() => setRgbBg('bg-gray-900')} onMouseLeave={() => setRgbBg('bg-black')}>{'rgb(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ')'}</div>
+            <div onClick={handleHsvClick} className={'cursor-pointer text-center border-1 border-white p-1 w-full select-none ' + hsvBg} onMouseEnter={() => sethsvBg('bg-gray-900')} onMouseLeave={() => sethsvBg('bg-black')}>{'hsv(' + hexToHsv(color).h + ', ' + hexToHsv(color).s + ', ' + hexToHsv(color).v + ')'}</div>
+            <div className='text-center border-1 border-white p-3 w-full' style={{ backgroundColor: color }}></div>
+            <div className='text-center text-base select-none'>{copyText + "   "}</div>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    menu()
+    picker ? colorPicker2() : menu()
   );
 }
